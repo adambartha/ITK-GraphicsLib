@@ -48,9 +48,10 @@ inline void init(size_t set_res_x, size_t set_res_y, string set_font_type = "", 
     gout.open(res_x, res_y);
 }
 
-struct color3
+class color3
 {
     unsigned char r, g, b;
+public:
     color3(unsigned char set_r = (rand() % 256), unsigned char set_g = (rand() % 256), unsigned char set_b = (rand() % 256))
     {
         r = set_r;
@@ -68,6 +69,11 @@ struct color3
     color3 blend(const color3 with)
     {
         return color3((r + with.r) / 2, (g + with.g) / 2, (b + with.b) / 2);
+    }
+    color3 desaturate()
+    {
+        unsigned char gs = sqrt((pow(r, 2) + pow(g, 2) + pow(b, 2)) / 3);
+        return color3(gs, gs, gs);
     }
 };
 
