@@ -223,17 +223,129 @@ public:
     }
 };
 
-class combobox: public control
+class container: public control
 {
+protected:
     vector<string> items;
     size_t selected, scroll_index, items_max;
-    bool is_open;
     color3 cfill, ctext, cstroke, ctext_active;
     void auto_limit()
     {
         selected = limit(selected, 0, count() - 1);
         scroll_index = limit(scroll_index, 0, count() - items_max);
     }
+public:
+    void set_colors(color3 set_cfill = COLOR_WHITE, color3 set_ctext = COLOR_BLACK, color3 set_cstroke = COLOR_NAVY, color3 set_ctext_active = COLOR_DEEPBLUE)
+    {
+        cfill = set_cfill;
+        ctext = set_ctext;
+        cstroke = set_cstroke;
+        ctext_active = set_ctext_active;
+    }
+    void select(const size_t index)
+    {
+        selected = index;
+    }
+    void add(const string item)
+    {
+        items.push_back(item);
+    }
+    void add(vector<string> add_items)
+    {
+        for(auto &i:add_items)
+        {
+            items.push_back(i);
+        }
+    }
+    void remove(const string item)
+    {
+        for(size_t i = 0; i < count(); i++)
+        {
+            if(items[i] == item)
+            {
+                items.erase(items.begin() + i);
+                auto_limit();
+                break;
+            }
+        }
+    }
+    void remove(const size_t index)
+    {
+        if(index < count())
+        {
+            items.erase(items.begin() + index);
+            auto_limit();
+        }
+    }
+    void remove_selected()
+    {
+        if(count() > 0)
+        {
+            items.erase(items.begin() + selected);
+            auto_limit();
+        }
+    }
+    virtual void clear() {};
+    void modify(const string modify_to)
+    {
+        if(modify_to.length() > 0)
+        {
+            items[selected] = modify_to;
+        }
+    }
+    void scroll(int set_scroll, size_t jump_to = 0)
+    {
+        if(set_scroll == 0)
+        {
+            scroll_index = (jump_to * (count() - items_max));
+        }
+        else if(set_scroll < 0 && (scroll_index + set_scroll) < scroll_index)
+        {
+            scroll_index += set_scroll;
+        }
+        else if(set_scroll > 0)
+        {
+            scroll_index = limit(scroll_index + set_scroll, 0, count() - items_max);
+        }
+    }
+    string get_item(const size_t index)
+    {
+        if(index < count())
+        {
+            return items[index];
+        }
+        return "";
+    }
+    string get_selected_item()
+    {
+        if(selected < count())
+        {
+            return items[selected];
+        }
+        return "";
+    }
+    size_t get_index()
+    {
+        return selected;
+    }
+    size_t count()
+    {
+        return items.size();
+    }
+    size_t get_items_max()
+    {
+        return items_max;
+    }
+    virtual bool in_range_select(size_t);
+    bool is_overflow()
+    {
+        return (count() > items_max);
+    }
+};
+
+class combobox: public container
+{
+    bool is_open;
 public:
     combobox(size_t set_x, size_t set_y, size_t set_sx, size_t set_sy, size_t set_wstroke = 1, size_t set_items_max = 10)
     {
@@ -248,13 +360,6 @@ public:
         is_open = false;
         type = "ComboBox";
         set_colors();
-    }
-    void set_colors(color3 set_cfill = COLOR_WHITE, color3 set_ctext = COLOR_BLACK, color3 set_cstroke = COLOR_NAVY, color3 set_ctext_active = COLOR_DEEPBLUE)
-    {
-        cfill = set_cfill;
-        ctext = set_ctext;
-        cstroke = set_cstroke;
-        ctext_active = set_ctext_active;
     }
     void draw()
     {
@@ -383,98 +488,12 @@ public:
             is_open = false;
         }
     }
-    void select(const size_t index)
-    {
-        selected = index;
-    }
-    void add(const string item)
-    {
-        items.push_back(item);
-    }
-    void add(vector<string> add_items)
-    {
-        for(auto &i:add_items)
-        {
-            items.push_back(i);
-        }
-    }
-    void remove(const string item)
-    {
-        for(size_t i = 0; i < count(); i++)
-        {
-            if(items[i] == item)
-            {
-                items.erase(items.begin() + i);
-                auto_limit();
-                break;
-            }
-        }
-    }
-    void remove(const size_t index)
-    {
-        if(index < count())
-        {
-            items.erase(items.begin() + index);
-            auto_limit();
-        }
-    }
-    void remove_selected()
-    {
-        if(count() > 0)
-        {
-            items.erase(items.begin() + selected);
-            auto_limit();
-        }
-    }
     void clear()
     {
         items.clear();
         is_open = false;
         selected = 0;
         scroll_index = 0;
-    }
-    void scroll(int set_scroll, size_t jump_to = 0)
-    {
-        if(set_scroll == 0)
-        {
-            scroll_index = (jump_to * (count() - items_max));
-        }
-        else if(set_scroll < 0 && (scroll_index + set_scroll) < scroll_index)
-        {
-            scroll_index += set_scroll;
-        }
-        else if(set_scroll > 0)
-        {
-            scroll_index = limit(scroll_index + set_scroll, 0, count() - items_max);
-        }
-    }
-    string get_item(const size_t index)
-    {
-        if(index < count())
-        {
-            return items[index];
-        }
-        return "";
-    }
-    string get_selected_item()
-    {
-        if(selected < count())
-        {
-            return items[selected];
-        }
-        return "";
-    }
-    size_t get_index()
-    {
-        return selected;
-    }
-    size_t count()
-    {
-        return items.size();
-    }
-    size_t get_items_max()
-    {
-        return items_max;
     }
     bool in_range_select(const size_t index)
     {
@@ -485,22 +504,10 @@ public:
     {
         return is_open;
     }
-    bool is_overflow()
-    {
-        return (count() > items_max);
-    }
 };
 
-class listbox: public control
+class listbox: public container
 {
-    vector<string> items;
-    size_t selected, scroll_index, items_max;
-    color3 cfill, ctext, cstroke, ctext_active;
-    void auto_limit()
-    {
-        selected = limit(selected, 0, count() - 1);
-        scroll_index = limit(scroll_index, 0, count() - items_max);
-    }
 public:
     listbox(size_t set_x, size_t set_y, size_t set_sx, size_t set_sy, size_t set_wstroke = 1)
     {
@@ -514,13 +521,6 @@ public:
         scroll_index = 0;
         type = "ListBox";
         set_colors();
-    }
-    void set_colors(color3 set_cfill = COLOR_WHITE, color3 set_ctext = COLOR_BLACK, color3 set_cstroke = COLOR_NAVY, color3 set_ctext_active = COLOR_DEEPBLUE)
-    {
-        cfill = set_cfill;
-        ctext = set_ctext;
-        cstroke = set_cstroke;
-        ctext_active = set_ctext_active;
     }
     void draw()
     {
@@ -589,105 +589,16 @@ public:
             gout << text("<üres>");
         }
     }
-    void select(const size_t index)
-    {
-        selected = index;
-    }
-    void add(const string item)
-    {
-        items.push_back(item);
-    }
-    void add(vector<string> add_items)
-    {
-        for(auto &i:add_items)
-        {
-            items.push_back(i);
-        }
-    }
-    void remove(const string item)
-    {
-        for(size_t i = 0; i < count(); i++)
-        {
-            if(items[i] == item)
-            {
-                items.erase(items.begin() + i);
-                auto_limit();
-                break;
-            }
-        }
-    }
-    void remove(const size_t index)
-    {
-        if(index < count())
-        {
-            items.erase(items.begin() + index);
-            auto_limit();
-        }
-    }
-    void remove_selected()
-    {
-        if(count() > 0)
-        {
-            items.erase(items.begin() + selected);
-            auto_limit();
-        }
-    }
     void clear()
     {
         items.clear();
         selected = 0;
         scroll_index = 0;
     }
-    void modify(const string modify_to)
-    {
-        if(modify_to.length() > 0)
-        {
-            items[selected] = modify_to;
-        }
-    }
-    void scroll(int set_scroll, size_t jump_to = 0)
-    {
-        if(set_scroll == 0)
-        {
-            scroll_index = (jump_to * (count() - items_max));
-        }
-        else if(set_scroll < 0 && (scroll_index + set_scroll) < scroll_index)
-        {
-            scroll_index += set_scroll;
-        }
-        else if(set_scroll > 0)
-        {
-            scroll_index = limit(scroll_index + set_scroll, 0, count() - items_max);
-        }
-    }
-    string get_item(const size_t index)
-    {
-        return items[index];
-    }
-    string get_selected_item()
-    {
-        return items[selected];
-    }
-    size_t get_index()
-    {
-        return selected;
-    }
-    size_t count()
-    {
-        return items.size();
-    }
-    size_t get_items_max()
-    {
-        return items_max;
-    }
     bool in_range_select(const size_t index)
     {
         size_t offset0 = (y + wstroke + ((index - scroll_index) * (gout.cascent() + 10))), offset1 = (y + wstroke + ((index - scroll_index + 1) * (gout.cascent() + 10)));
         return (evx >= x && evx < (x + sx) && evy >= offset0 && evy < offset1);
-    }
-    bool is_overflow()
-    {
-        return (count() > items_max);
     }
 };
 
