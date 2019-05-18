@@ -2,7 +2,7 @@
 
 unsigned short wait_reset()
 {
-    return (100 + rand() % 400);
+    return 1000;//(100 + rand() % 400);
 }
 
 int main()
@@ -13,11 +13,12 @@ int main()
 
     srand(time(0));
 
-    vector<card*> deck;
-    vector<card*> deck_discard;
+    vector<card*> pile_draw;
+    vector<card*> pile_discard;
     vector<player*> players;
 
-    unsigned short master_index = game_index::menu, num_cpu = 3, num_start = 5, turn = 0, turn_player;
+    size_t master_index = game_index::menu, num_cpu = 3, num_start = 5, turn, turn_player;
+    bool dir_rev = false;
 
     button* button_start = new button(100, center_y - 130, 300, 80, 5, "Start");
     button* button_settings = new button(100, center_y - 40, 300, 80, 5, "Settings");
@@ -72,7 +73,7 @@ int main()
         button_start->set_state(0);
         button_settings->set_state(0);
         button_help->set_state(0);
-        load_deck(deck);
+        load_deck(pile_draw);
         turn_player = (rand() % (num_cpu + 1));
         for(size_t i = 0; i <= num_cpu; i++)
         {
@@ -89,10 +90,15 @@ int main()
         {
             for(auto *p:players)
             {
-                p->draw_card(deck, (50 + (i * 225)), 450);
+                p->draw_card(pile_draw, (50 + (i * 225)), 450);
             }
         }
-        discard(deck, deck_discard);
+        discard(pile_draw, pile_discard);
+        if(pile_discard.back()->get_type() == card_type::reverse)
+        {
+            turn = (players.size() - 1);
+            dir_rev = true;
+        }
         master_index = game_index::game;
     });
     button_settings->set_task([&]()
@@ -171,18 +177,19 @@ int main()
             display_text(center_x, center_y + gout.cascent(), "Press ANY KEY to begin!", text_align::center);
             gout << refresh;
             while(gin >> ev && ev.keycode == 0) {};
-            unsigned short cpu_wait = wait_reset();
+            size_t cpu_wait = wait_reset(), color_request = 0;
             while(gin >> ev && ev.keycode != key_escape)
             {
                 trim(COLOR_TAN);
                 run_events(ev);
                 gout << move_to(30, 430) << COLOR_STEEL.to_gout() << box(1140, 340);
                 players[turn]->show_hand();//players[turn_player]->show_hand();
-                deck_discard.back()->show();
+                pile_discard.back()->show();
                 set_font(font_type, 16);
                 gout << move_to(25, 25) << COLOR_TAN.blend(COLOR_GREY).to_gout() << box(100, (players.size() * (gout.cascent() + 5)))
                 << move_to(25, 25 + (turn * (gout.cascent() + 5))) << COLOR_RED.to_gout() << box(100, gout.cascent() + 5);
-                unsigned short n = 1, to_y;
+                size_t n = 1, to_y;
+                bool is_skip = false;
                 for(size_t i = 0; i < players.size(); i++)
                 {
                     to_y = (24 + (i * (gout.cascent() + 5)));
@@ -192,8 +199,19 @@ int main()
                     }
                     else
                     {
-                        display_text(30, to_y, tostring(i + 1) + ". CPU " + tostring(n));
-                        n++;
+                        if(num_cpu > 1)
+                        {
+                            display_text(30, to_y, tostring(i + 1) + ". CPU " + tostring(n));
+                            n++;
+                        }
+                        else
+                        {
+                            display_text(30, to_y, tostring(i + 1) + ". CPU");
+                        }
+                    }
+                    for(size_t j = 0; j < players[i]->get_hand_num(); j++)
+                    {
+                        gout << move_to(130 + (j * 15), to_y + 2) << COLOR_BLACK.to_gout() << box(12, gout.cascent() + 1);
                     }
                 }
                 set_font(font_type, 32);
@@ -201,22 +219,46 @@ int main()
                 {
                     gin.timer(0);
                     display_text(center_x, center_y - gout.cascent(), "Your turn!", text_align::center);
-                    if(ev.button == btn_right)
+                    if(ev.button == btn_left)
                     {
-                        turn_next(turn, players.size());
-                        cpu_wait = wait_reset();
+                        size_t index = 0;
+                        for(auto *i:players[turn_player]->get_hand())
+                        {
+                            if(i->in_range() && i->match(pile_discard.back()))
+                            {
+                                players[turn_player]->play_card(pile_discard, index);
+                                set_modifiers(pile_discard, dir_rev, is_skip, color_request);
+                                turn_next(turn, players.size(), dir_rev, is_skip);
+                                cpu_wait = wait_reset();
+                            }
+                            else
+                            {
+                                index++;
+                            }
+                        }
+                    }
+                    else if(ev.button == btn_right)
+                    {
+                        players[turn_player]->draw_card(pile_draw, (50 + ((players[turn_player]->get_hand_num() - 1) * 225)), 450);
                     }
                 }
                 else
                 {
                     gin.timer(1);
-                    if(turn > turn_player)
+                    if(num_cpu > 1)
                     {
-                        display_text(center_x, center_y - gout.cascent(), "CPU " + tostring(turn) + "'s turn!", text_align::center);
+                        if(turn > turn_player)
+                        {
+                            display_text(center_x, center_y - gout.cascent(), "CPU " + tostring(turn) + "'s turn!", text_align::center);
+                        }
+                        else
+                        {
+                            display_text(center_x, center_y - gout.cascent(), "CPU " + tostring(turn + 1) + "'s turn!", text_align::center);
+                        }
                     }
                     else
                     {
-                        display_text(center_x, center_y - gout.cascent(), "CPU " + tostring(turn + 1) + "'s turn!", text_align::center);
+                        display_text(center_x, center_y - gout.cascent(), "CPU's turn!", text_align::center);
                     }
                     if(ev.type == ev_timer)
                     {
@@ -226,24 +268,27 @@ int main()
                         }
                         else
                         {
-                            bool can_place = false;
+                            vector<size_t> cpu_hand;
+                            size_t index = 0;
                             for(auto *i:players[turn]->get_hand())
                             {
-                                if(i->match(deck_discard.back()))
+                                if(i->match(pile_discard.back()))
                                 {
-                                    can_place = true;
-                                    break;
+                                    cpu_hand.push_back(index);
                                 }
+                                index++;
                             }
-                            if(can_place)
+                            if(cpu_hand.size() > 0)
                             {
-                                cout << "OK" << endl;
+                                players[turn]->play_card(pile_discard, cpu_hand[rand() % cpu_hand.size()]);
+                                set_modifiers(pile_discard, dir_rev, is_skip, color_request);
+                                cout << "OK[" << cpu_hand.size() << "]" << endl;
                             }
                             else
                             {
                                 cout << "NOPE" << endl;
                             }
-                            turn_next(turn, players.size());
+                            turn_next(turn, players.size(), dir_rev, is_skip);
                             cpu_wait = wait_reset();
                         }
                     }
