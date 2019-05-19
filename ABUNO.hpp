@@ -253,12 +253,14 @@ public:
 
 class player
 {
+    string name;
     vector<card*> hand;
     bool cpu, out;
     size_t scroll_index;
 public:
-    player(bool set_cpu = true)
+    player(const string set_name, bool set_cpu = true)
     {
+        name = set_name;
         cpu = set_cpu;
         out = false;
         scroll_index = 0;
@@ -269,7 +271,7 @@ public:
         hand.back()->place(to_x, to_y);
         deck.pop_back();
     }
-    void play_card(vector<card*> &deck, size_t index)
+    void play_card(vector<card*> &deck, size_t index, string& last_play)
     {
         deck.push_back(hand[index]);
         hand.erase(hand.begin() + index);
@@ -282,6 +284,7 @@ public:
         {
             scroll_index--;
         }
+        last_play = name;
     }
     void show_hand(card* other = nullptr, size_t color_request = 0)
     {
@@ -321,6 +324,10 @@ public:
     size_t get_hand_num()
     {
         return hand.size();
+    }
+    string get_name()
+    {
+        return name;
     }
 };
 
