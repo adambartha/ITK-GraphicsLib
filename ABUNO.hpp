@@ -24,6 +24,27 @@ enum text_align
     left, right, center
 };
 
+string color_to_text(size_t index)
+{
+    if(index == card_color::red)
+    {
+        return "RED";
+    }
+    else if(index == card_color::green)
+    {
+        return "GREEN";
+    }
+    else if(index == card_color::blue)
+    {
+        return "BLUE";
+    }
+    else if(index == card_color::yellow)
+    {
+        return "YELLOW";
+    }
+    return "";
+}
+
 class card
 {
     size_t x, y, color, type, number;
@@ -57,16 +78,23 @@ public:
         type = set_type;
         number = set_number;
     }
-    void show()
+    void show(card* other = nullptr, size_t color_request = 0)
     {
         if(x == 0 && y == 0)
         {
             return;
         }
         set_font(font_type, 96);
-        if(in_range())
+        if(other != nullptr)
         {
-            gout << move_to(x - 5, y - 5) << COLOR_GREEN.to_gout() << box(210, 310);
+            if(in_range() && match(other, color_request))
+            {
+                gout << move_to(x - 5, y - 5) << COLOR_GREEN.to_gout() << box(210, 310);
+            }
+            else if(in_range() && !match(other, color_request))
+            {
+                gout << move_to(x - 5, y - 5) << COLOR_RED.to_gout() << box(210, 310);
+            }
         }
         gout << move_to(x, y) << COLOR_BLACK.to_gout() << box(200, 300)
         << move_to(x + 1, y + 1) << COLOR_WHITE.to_gout() << box(198, 298)
@@ -246,16 +274,13 @@ public:
         deck.push_back(hand[index]);
         hand.erase(hand.begin() + index);
         deck.back()->place(500, 50);
-        for(size_t i = index; i < hand.size(); i++)
-        {
-            hand[i]->place((50 + (i * 225)), 450);
-        }
     }
-    void show_hand()
+    void show_hand(card* other = nullptr, size_t color_request = 0)
     {
-        for(auto *i:hand)
+        for(size_t i = offset; i < (hand.size() - offset); i++)
         {
-            i->show();
+            hand[i]->place((50 + ((i - offset) * 225)), 450);
+            hand[i]->show(other, color_request);
         }
     }
     bool is_cpu()
@@ -272,7 +297,7 @@ public:
     }
 };
 
-void shuffle_deck(vector<card*> &deck)
+void shuffle_deck(vector<card*>& deck)
 {
     do
     {
@@ -281,7 +306,7 @@ void shuffle_deck(vector<card*> &deck)
     while(deck.back()->get_type() == card_type::takefour);
 }
 
-void load_deck(vector<card*> &deck)
+void load_deck(vector<card*>& deck)
 {
     deck.clear();
     for(size_t i = 1; i <= 4; i++)
@@ -309,7 +334,7 @@ void load_deck(vector<card*> &deck)
     {
         for(size_t j = 0; j < 4; j++)
         {
-            deck.push_back(new card(i));// WILD x4 (8)
+            deck.push_back(new card(i)); // WILD x4 (8)
         }
     }
     shuffle_deck(deck);
@@ -406,15 +431,24 @@ void turn_next(size_t &turn, const size_t num_players, bool reverse, bool& skip)
     }
 }
 
-void set_modifiers(vector<card*>& deck, bool& set_reverse, bool& set_skip, size_t& set_color)
+void set_modifiers(vector<card*>& deck, bool& set_reverse, bool& set_skip, size_t& set_color, size_t& set_draw)
 {
     if(deck.back()->get_type() == card_type::skip)
     {
         set_skip = true;
     }
+    else if(deck.back()->get_type() == card_type::taketwo)
+    {
+        set_draw = 2;
+    }
     else if(deck.back()->get_type() == card_type::reverse)
     {
         set_reverse = !set_reverse;
+    }
+    else if(deck.back()->get_type() == card_type::takefour)
+    {
+        set_color = (1 + (rand() % 4));
+        set_draw = 4;
     }
     else if(deck.back()->get_type() == card_type::pickcolor)
     {
