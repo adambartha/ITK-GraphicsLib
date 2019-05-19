@@ -90,9 +90,9 @@ int main()
         button_start->set_state(0);
         button_settings->set_state(0);
         button_help->set_state(0);
-        load_deck(pile_draw);
         pile_discard.clear();
         players.clear();
+        load_deck(pile_draw);
         turn = 0;
         turn_player = (rand() % (num_cpu + 1));
         to_draw = 0;
@@ -112,10 +112,23 @@ int main()
         {
             for(auto *p:players)
             {
-                p->draw_card(pile_draw, (50 + (i * 225)), 450);
+                if(p->is_cpu())
+                {
+                    p->draw_card(pile_draw);
+                }
+                else
+                {
+                    p->draw_card(pile_draw, (50 + (i * 225)), 450);
+                }
             }
         }
-        discard(pile_draw, pile_discard);
+        while(pile_draw.back()->get_type() == card_type::takefour)
+        {
+            shuffle_deck(pile_draw);
+        }
+        pile_discard.push_back(pile_draw.back());
+        pile_draw.pop_back();
+        pile_discard.back()->place(500, 50);
         if(pile_discard.back()->get_type() == card_type::skip)
         {
             turn = 1;
@@ -231,6 +244,19 @@ int main()
     );
     button_color_yellow->set_state(0);
 
+    button* button_uno = new button(center_x - 100, center_y - 25, 200, 50, 2, "UNO!");
+
+    button_uno->set_colors
+    (
+        COLOR_GOLD,
+        COLOR_WHITE,
+        COLOR_GOLD,
+        COLOR_WHITE,
+        COLOR_GOLD,
+        COLOR_GOLD
+    );
+    button_uno->set_state(0);
+
     while(gin >> ev && ev.keycode != key_escape)
     {
         trim(COLOR_TAN);
@@ -250,7 +276,8 @@ int main()
         }
         else if(master_index == game_index::help)
         {
-            display_text(center_x, center_y - gout.cascent(), "RIGHT CLICK: Draw card(s)", text_align::center);
+            display_text(center_x, center_y - gout.cascent() - 5, "RIGHT CLICK: Draw card(s)", text_align::center);
+            display_text(center_x, center_y + 5, "LEFT/RIGHT ARROWS: Scroll between cards", text_align::center);
         }
         else if(master_index == game_index::game)
         {
@@ -260,44 +287,76 @@ int main()
             display_text(center_x, center_y + gout.cascent(), "Press ANY KEY to begin!", text_align::center);
             gout << refresh;
             while(gin >> ev && ev.keycode == 0) {};
-            size_t cpu_wait = wait_reset();
+            size_t cpu_wait = wait_reset(), turn_total = 1;
+            player* local_player = players[turn_player];
             while(gin >> ev && ev.keycode != key_escape && is_win(players) == -1)
             {
                 trim(COLOR_TAN);
                 run_events(ev);
-                gout << move_to(30, 430) << COLOR_STEEL.to_gout() << box(1140, 340);
-                players[turn_player]->show_hand(pile_discard.back(), color_request);
+                gout << move_to(25, 425) << COLOR_STEEL.to_gout() << box(1150, 350);
+                for(size_t i = local_player->get_hand_num(); i < 5; i++)
+                {
+                    gout << move_to(50 + (i * 225), 450) << COLOR_STEEL.blend(COLOR_BLACK).to_gout() << box(200, 300);
+                }
+                if(local_player->get_hand_num() > 5)
+                {
+                    if(ev.keycode == key_left)
+                    {
+                        local_player->scroll(-1);
+                    }
+                    else if(ev.keycode == key_right)
+                    {
+                        local_player->scroll(1);
+                    }
+                    double offset = local_player->get_scroll_index(), wscroll = (5500 / (double)local_player->get_hand_num());
+                    gout << move_to(50, 760) << COLOR_LIME.blend(COLOR_STEEL).to_gout() << box(1100, 5)
+                    << move_to(50 + (offset * (wscroll / 5)), 760) << COLOR_LIME.to_gout() << box(ceil(wscroll), 5);
+                }
+                local_player->show_hand(pile_discard.back(), color_request);
+                if(pile_draw.size() == 0)
+                {
+                    reshuffle(pile_draw, pile_discard);
+                }
                 pile_discard.back()->show();
                 set_font(font_type, 12);
                 display_text(center_x + 110, center_y - 50 - gout.cascent(), tostring(pile_discard.size()) + "/" + tostring(pile_draw.size()));
                 set_font(font_type, 16);
-                gout << move_to(25, 25) << COLOR_TAN.blend(COLOR_GREY).to_gout() << box(100, (players.size() * (gout.cascent() + 5)))
-                << move_to(25, 25 + (turn * (gout.cascent() + 5))) << COLOR_RED.to_gout() << box(100, gout.cascent() + 5);
+                gout << move_to(50, 50) << COLOR_TAN.blend(COLOR_GREY).to_gout() << box(100, (players.size() * (gout.cascent() + 5))) << move_to(50, 50 + (turn * (gout.cascent() + 5)));
+                if(turn == turn_player)
+                {
+                    gout << COLOR_OCEAN.to_gout();
+                }
+                else
+                {
+                    gout << COLOR_RED.to_gout();
+                }
+                gout << box(100, gout.cascent() + 5);
                 size_t n = 1, to_y;
-                bool is_skip = false;
                 for(size_t i = 0; i < players.size(); i++)
                 {
-                    to_y = (24 + (i * (gout.cascent() + 5)));
+                    to_y = (49 + (i * (gout.cascent() + 5)));
                     if(i == turn_player)
                     {
-                        display_text(30, to_y, tostring(i + 1) + ". You");
+                        display_text(55, to_y, tostring(i + 1) + ". You");
                     }
                     else
                     {
                         if(num_cpu > 1)
                         {
-                            display_text(30, to_y, tostring(i + 1) + ". CPU " + tostring(n));
+                            display_text(55, to_y, tostring(i + 1) + ". CPU " + tostring(n));
                             n++;
                         }
                         else
                         {
-                            display_text(30, to_y, tostring(i + 1) + ". CPU");
+                            display_text(55, to_y, tostring(i + 1) + ". CPU");
                         }
                     }
-                    for(size_t j = 0; j < players[i]->get_hand_num(); j++)
+                    size_t hand_num = players[i]->get_hand_num();
+                    for(size_t j = 0; j < hand_num; j++)
                     {
-                        gout << move_to(130 + (j * 15), to_y + 2) << COLOR_BLACK.to_gout() << box(12, gout.cascent() + 1);
+                        gout << move_to(155 + (j * 15), to_y + 2) << COLOR_BLACK.to_gout() << box(12, gout.cascent() + 1);
                     }
+                    gout << move_to(156 + (hand_num * 15), to_y - 1) << text(tostring(hand_num));
                 }
                 if(num_cpu > 1)
                 {
@@ -307,18 +366,22 @@ int main()
                     {
                         for(size_t i = 1; i <= 20; i++)
                         {
-                            gout << move_to(74 - i, to_y + i) << line(i * 2, 1);
+                            gout << move_to(99 - i, to_y + i) << line(i * 2, 1);
                         }
                     }
                     else
                     {
                         for(size_t i = 1; i <= 20; i++)
                         {
-                            gout << move_to(54 + i, to_y + i) << line((21 - i) * 2, 1);
+                            gout << move_to(79 + i, to_y + i) << line((21 - i) * 2, 1);
                         }
                     }
                 }
+                string turn_no = ("Turn No. " + tostring(turn_total));
+                gout << move_to(res_x - 60 - gout.twidth(turn_no), 50) << COLOR_TAN.blend(COLOR_GREY).to_gout() << box(gout.twidth(turn_no) + 10, gout.cascent() + 10);
+                display_text(res_x - 55, 52, turn_no, text_align::right);
                 set_font(font_type, 32);
+                bool is_skip = false;
                 if(turn == turn_player)
                 {
                     gin.timer(0);
@@ -327,9 +390,13 @@ int main()
                         display_text(center_x, center_y - gout.cascent(), "Your turn - Draw " + tostring(to_draw) + " cards and play " + color_to_text(color_request) + "!", text_align::center);
                         if(ev.button == btn_right)
                         {
+                            if(to_draw > pile_draw.size())
+                            {
+                                reshuffle(pile_draw, pile_discard);
+                            }
                             while(to_draw > 0)
                             {
-                                players[turn_player]->draw_card(pile_draw, (50 + ((players[turn_player]->get_hand_num() - 1) * 225)), 450);
+                                local_player->draw_card(pile_draw, (50 + ((local_player->get_hand_num() - 1) * 225)), 450);
                                 to_draw--;
                             }
                         }
@@ -341,12 +408,16 @@ int main()
                             display_text(center_x, center_y - gout.cascent(), "Your turn - Draw " + tostring(to_draw) + " cards!", text_align::center);
                             if(ev.button == btn_right)
                             {
+                                if(to_draw > pile_draw.size())
+                                {
+                                    reshuffle(pile_draw, pile_discard);
+                                }
                                 while(to_draw > 0)
                                 {
-                                    players[turn_player]->draw_card(pile_draw, (50 + ((players[turn_player]->get_hand_num() - 1) * 225)), 450);
+                                    local_player->draw_card(pile_draw, (50 + ((local_player->get_hand_num() - 1) * 225)), 450);
                                     to_draw--;
                                 }
-                                turn_next(turn, players.size(), dir_rev, is_skip);
+                                turn_next(turn, players.size(), dir_rev, is_skip, turn_total);
                                 cpu_wait = wait_reset();
                             }
                         }
@@ -356,13 +427,13 @@ int main()
                             if(ev.button == btn_left)
                             {
                                 size_t index = 0;
-                                for(auto *i:players[turn_player]->get_hand())
+                                for(auto *i:local_player->get_hand())
                                 {
                                     if(i->in_range() && i->get_color() == color_request)
                                     {
-                                        players[turn_player]->play_card(pile_discard, index);
+                                        local_player->play_card(pile_discard, index);
                                         set_modifiers(pile_discard, dir_rev, is_skip, color_request, to_draw);
-                                        turn_next(turn, players.size(), dir_rev, is_skip);
+                                        turn_next(turn, players.size(), dir_rev, is_skip, turn_total);
                                         cpu_wait = wait_reset();
                                         color_request = 0;
                                     }
@@ -374,8 +445,8 @@ int main()
                             }
                             else if(ev.button == btn_right)
                             {
-                                players[turn_player]->draw_card(pile_draw, (50 + ((players[turn_player]->get_hand_num() - 1) * 225)), 450);
-                                turn_next(turn, players.size(), dir_rev, is_skip);
+                                local_player->draw_card(pile_draw, (50 + ((local_player->get_hand_num() - 1) * 225)), 450);
+                                turn_next(turn, players.size(), dir_rev, is_skip, turn_total);
                                 cpu_wait = wait_reset();
                             }
                         }
@@ -386,53 +457,92 @@ int main()
                         if(ev.button == btn_left)
                         {
                             size_t index = 0;
-                            for(auto *i:players[turn_player]->get_hand())
+                            for(auto *i:local_player->get_hand())
                             {
                                 if(i->in_range() && i->match(pile_discard.back()))
                                 {
-                                    players[turn_player]->play_card(pile_discard, index);
-                                    if(pile_discard.back()->get_type() == card_type::takefour || pile_discard.back()->get_type() == card_type::pickcolor)
+                                    local_player->play_card(pile_discard, index);
+                                    bool uno_draw = false;
+                                    if(local_player->get_hand_num() == 1)
                                     {
-                                        button_color_red->set_state(2);
-                                        button_color_green->set_state(2);
-                                        button_color_blue->set_state(2);
-                                        button_color_yellow->set_state(2);
-                                        while(gin >> ev && color_request == 0)
+                                        bool uno = false;
+                                        size_t uno_timer = 100;
+                                        button_uno->set_state(2);
+                                        gin.timer(1);
+                                        while(gin >> ev && !uno && uno_timer > 0)
                                         {
-                                            gin.timer(1);
                                             trim(COLOR_TAN);
                                             run_events(ev);
-                                            display_text(center_x, center_y - 100, "Choose a color!", text_align::center);
-                                            if(ev.button == btn_left)
+                                            display_text(center_x, center_y - 100, "Quick! Press UNO!", text_align::center);
+                                            gout << move_to(98, 598) << COLOR_DARKGREY.to_gout() << box(1004, 14)
+                                            << move_to(100, 600) << COLOR_LIME.blend(COLOR_BLACK).to_gout() << box(1000, 10)
+                                            << move_to(100, 600) << COLOR_LIME.to_gout() << box((uno_timer * 10), 10);
+                                            if(ev.type == ev_timer && uno_timer > 0)
                                             {
-                                                if(button_color_red->in_range())
-                                                {
-                                                    color_request = card_color::red;
-                                                }
-                                                else if(button_color_green->in_range())
-                                                {
-                                                    color_request = card_color::green;
-                                                }
-                                                else if(button_color_blue->in_range())
-                                                {
-                                                    color_request = card_color::blue;
-                                                }
-                                                else if(button_color_yellow->in_range())
-                                                {
-                                                    color_request = card_color::yellow;
-                                                }
+                                                uno_timer--;
+                                            }
+                                            if(ev.button == btn_left && button_uno->in_range())
+                                            {
+                                                uno = true;
                                             }
                                             update();
                                         }
                                         gin.timer(0);
-                                        button_color_red->set_state(0);
-                                        button_color_green->set_state(0);
-                                        button_color_blue->set_state(0);
-                                        button_color_yellow->set_state(0);
+                                        button_uno->set_state(0);
+                                        if(!uno)
+                                        {
+                                            uno_draw = true;
+                                        }
                                     }
-                                    set_modifiers(pile_discard, dir_rev, is_skip, color_request, to_draw);
-                                    turn_next(turn, players.size(), dir_rev, is_skip);
-                                    cpu_wait = wait_reset();
+                                    if(uno_draw)
+                                    {
+                                        to_draw = 2;
+                                    }
+                                    else
+                                    {
+                                        if(pile_discard.back()->get_type() == card_type::takefour || pile_discard.back()->get_type() == card_type::pickcolor)
+                                        {
+                                            button_color_red->set_state(2);
+                                            button_color_green->set_state(2);
+                                            button_color_blue->set_state(2);
+                                            button_color_yellow->set_state(2);
+                                            gin.timer(1);
+                                            while(gin >> ev && color_request == 0)
+                                            {
+                                                trim(COLOR_TAN);
+                                                run_events(ev);
+                                                display_text(center_x, center_y - 100, "Choose a color!", text_align::center);
+                                                if(ev.button == btn_left)
+                                                {
+                                                    if(button_color_red->in_range())
+                                                    {
+                                                        color_request = card_color::red;
+                                                    }
+                                                    else if(button_color_green->in_range())
+                                                    {
+                                                        color_request = card_color::green;
+                                                    }
+                                                    else if(button_color_blue->in_range())
+                                                    {
+                                                        color_request = card_color::blue;
+                                                    }
+                                                    else if(button_color_yellow->in_range())
+                                                    {
+                                                        color_request = card_color::yellow;
+                                                    }
+                                                }
+                                                update();
+                                            }
+                                            gin.timer(0);
+                                            button_color_red->set_state(0);
+                                            button_color_green->set_state(0);
+                                            button_color_blue->set_state(0);
+                                            button_color_yellow->set_state(0);
+                                        }
+                                        set_modifiers(pile_discard, dir_rev, is_skip, color_request, to_draw);
+                                        turn_next(turn, players.size(), dir_rev, is_skip, turn_total);
+                                        cpu_wait = wait_reset();
+                                    }
                                 }
                                 else
                                 {
@@ -442,8 +552,8 @@ int main()
                         }
                         else if(ev.button == btn_right)
                         {
-                            players[turn_player]->draw_card(pile_draw, (50 + ((players[turn_player]->get_hand_num() - 1) * 225)), 450);
-                            turn_next(turn, players.size(), dir_rev, is_skip);
+                            local_player->draw_card(pile_draw, (50 + ((local_player->get_hand_num() - 1) * 225)), 450);
+                            turn_next(turn, players.size(), dir_rev, is_skip, turn_total);
                             cpu_wait = wait_reset();
                         }
                     }
@@ -536,9 +646,13 @@ int main()
                         {
                             if(to_draw > 0 && color_request > 0)
                             {
+                                if(to_draw > pile_draw.size())
+                                {
+                                    reshuffle(pile_draw, pile_discard);
+                                }
                                 while(to_draw > 0)
                                 {
-                                    players[turn]->draw_card(pile_draw, (50 + ((players[turn]->get_hand_num() - 1) * 225)), 450);
+                                    players[turn]->draw_card(pile_draw);
                                     to_draw--;
                                 }
                                 vector<size_t> cpu_hand;
@@ -559,21 +673,25 @@ int main()
                                 }
                                 else
                                 {
-                                    players[turn]->draw_card(pile_draw, (50 + ((players[turn_player]->get_hand_num() - 1) * 225)), 450);
+                                    players[turn]->draw_card(pile_draw);
                                 }
-                                turn_next(turn, players.size(), dir_rev, is_skip);
+                                turn_next(turn, players.size(), dir_rev, is_skip, turn_total);
                                 cpu_wait = wait_reset();
                             }
                             else if(to_draw > 0 || color_request > 0)
                             {
                                 if(to_draw > 0)
                                 {
+                                    if(to_draw > pile_draw.size())
+                                    {
+                                        reshuffle(pile_draw, pile_discard);
+                                    }
                                     while(to_draw > 0)
                                     {
-                                        players[turn]->draw_card(pile_draw, (50 + ((players[turn]->get_hand_num() - 1) * 225)), 450);
+                                        players[turn]->draw_card(pile_draw);
                                         to_draw--;
                                     }
-                                    turn_next(turn, players.size(), dir_rev, is_skip);
+                                    turn_next(turn, players.size(), dir_rev, is_skip, turn_total);
                                     cpu_wait = wait_reset();
                                 }
                                 else if(color_request > 0)
@@ -596,9 +714,9 @@ int main()
                                     }
                                     else
                                     {
-                                        players[turn]->draw_card(pile_draw, (50 + ((players[turn_player]->get_hand_num() - 1) * 225)), 450);
+                                        players[turn]->draw_card(pile_draw);
                                     }
-                                    turn_next(turn, players.size(), dir_rev, is_skip);
+                                    turn_next(turn, players.size(), dir_rev, is_skip, turn_total);
                                     cpu_wait = wait_reset();
                                 }
                             }
@@ -621,9 +739,9 @@ int main()
                                 }
                                 else
                                 {
-                                    players[turn]->draw_card(pile_draw, (50 + ((players[turn_player]->get_hand_num() - 1) * 225)), 450);
+                                    players[turn]->draw_card(pile_draw);
                                 }
-                                turn_next(turn, players.size(), dir_rev, is_skip);
+                                turn_next(turn, players.size(), dir_rev, is_skip, turn_total);
                                 cpu_wait = wait_reset();
                             }
                         }
@@ -634,10 +752,11 @@ int main()
             int win_index = is_win(players);
             if(win_index != -1)
             {
+                set_font(font_type, 48);
                 if(win_index == (int)turn_player)
                 {
                     trim(COLOR_GOLD);
-                    display_text(center_x, center_y - (gout.cascent() / 2), "CONGRATULATIONS - YOU WIN!", text_align::center);
+                    display_text(center_x, 150, "CONGRATULATIONS - YOU WIN!", text_align::center);
                 }
                 else
                 {
@@ -646,20 +765,24 @@ int main()
                     {
                         if(win_index > (int)turn_player)
                         {
-                            display_text(center_x, center_y - (gout.cascent() / 2), "WINNER: CPU " + tostring(win_index + 1) + "!", text_align::center);
+                            display_text(center_x, 150, "WINNER: CPU " + tostring(win_index) + "!", text_align::center);
                         }
                         else
                         {
-                            display_text(center_x, center_y - (gout.cascent() / 2), "WINNER: CPU " + tostring(win_index) + "!", text_align::center);
+                            display_text(center_x, 150, "WINNER: CPU " + tostring(win_index + 1) + "!", text_align::center);
                         }
                     }
                     else
                     {
-                        display_text(center_x, center_y - (gout.cascent() / 2), "WINNER: CPU!", text_align::center);
+                        display_text(center_x, 150, "WINNER: CPU!", text_align::center);
                     }
                 }
+                pile_discard.back()->place(500, 300);
+                pile_discard.back()->show();
+                set_font(font_type, 32);
+                display_text(center_x, 200, "Total turns played: " + tostring(turn_total), text_align::center);
                 set_font(font_type, 16);
-                display_text(center_x, center_y + 50, "Press ESC to return to menu.", text_align::center);
+                display_text(center_x, 700, "Press ESC to return to menu.", text_align::center);
                 gout << refresh;
                 while(gin >> ev && ev.keycode != key_escape) {};
             }
