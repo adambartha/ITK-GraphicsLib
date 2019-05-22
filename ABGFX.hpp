@@ -336,7 +336,7 @@ public:
     {
         return items_max;
     }
-    virtual bool in_range_select(size_t);
+    virtual bool in_range_select(size_t) = 0;
     bool is_overflow()
     {
         return (count() > items_max);
