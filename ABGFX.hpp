@@ -9,7 +9,7 @@
 #include <functional>
 #include <fstream>
 
-/** ABGFX v10.0 **/
+/** ABGFX v10.1 **/
 
 using namespace genv;
 
@@ -62,6 +62,10 @@ public:
     {
         return color(r, g, b);
     }
+    color3 operator * (const double& m)
+    {
+        return color3(r * m, g * m, b * m);
+    }
     color3 operator / (const double& d)
     {
         return color3(r / d, g / d, b / d);
@@ -74,6 +78,10 @@ public:
     {
         unsigned char gs = sqrt((pow(r, 2) + pow(g, 2) + pow(b, 2)) / 3);
         return color3(gs, gs, gs);
+    }
+    color3 invert()
+    {
+        return color3(255 - r, 255 - g, 255 - b);
     }
 };
 
@@ -1359,8 +1367,8 @@ public:
 class graph: public control
 {
     string label_x, label_y;
-    color3 cfill, cscreen, ctext;
-    vector<int> values_x, values_y;
+    color3 cfill, cscreen, ctext, cvalue;
+    vector<int> values;
 public:
     graph(size_t set_x, size_t set_y, size_t set_sx, size_t set_sy, string set_label_x = "X-tengely", string set_label_y = "Y-tengely")
     {
@@ -1373,20 +1381,138 @@ public:
         type = "Graph";
         set_colors();
     }
-    void set_colors(color3 set_cfill = COLOR_LIGHTGREY, color3 set_cscreen = COLOR_SLATE, color3 set_ctext = COLOR_BLACK)
+    void set_colors(color3 set_cfill = COLOR_LIGHTGREY, color3 set_cscreen = COLOR_SLATE, color3 set_ctext = COLOR_BLACK, color3 set_cvalue = COLOR_RED)
     {
         cfill = set_cfill;
         cscreen = set_cscreen;
         ctext = set_ctext;
+        cvalue = set_cvalue;
     }
     void draw()
     {
         gout << move_to(x, y) << cfill.to_gout() << box(sx, sy)
+        << move_to(x, y) << cfill.blend(COLOR_WHITE).to_gout() << line(sx - 1, 0)
+        << move_to(x, y + 1) << line(0, sy - 2)
+        << move_to(x + 1, y + sy - 1) << (cfill / 2).to_gout() << line(sx - 1, 0)
+        << move_to(x + sx - 1, y + 1) << line(0, sy - 1)
         << move_to(x + 10, y + 10) << cscreen.to_gout() << box(sx - 20, sy - 20)
-        << move_to(x + 19, y + 24 + gout.cascent()) << ctext.to_gout() << line(0, sy - 44 - gout.cascent())
-        << move_to(x + 19, y + sy - 20) << line(sx - gout.twidth(label_x) - 42, 0)
-        << move_to(x + sx - gout.twidth(label_x) - 15, y + sy - gout.cascent() - 20) << text(label_x)
-        << move_to(x + 15, y + 15) << text(label_y);
+        << move_to(x + 10, y + 10) << (cscreen / 2).to_gout() << line(sx - 21, 0)
+        << move_to(x + 10, y + 11) << line(0, sy - 22)
+        << move_to(x + 11, y + sy - 9) << cscreen.blend(COLOR_WHITE).to_gout() << line(sx - 21, 0)
+        << move_to(x + sx - 9, y + 11) << line(0, sy - 21) << ctext.to_gout();
+        if(values.size() > 0)
+        {
+            size_t cx = (sx - 40), cy = (sy - gout.cascent() - 24), offset_x = 0, offset_y = 0;
+            int hvalue;
+            double unit = ((double)cx / (double)values.size());
+            if(get_min_value() < 0)
+            {
+                int range = -get_min_value();
+                if(get_max_value() > 0)
+                {
+                    range += get_max_value();
+                }
+                offset_y = (cy * limit(-(double)get_min_value() / range, 0, 1));
+                for(size_t i = 0; i < values.size(); i++)
+                {
+                    offset_x = gout.twidth(tostring(values[i]));
+                    hvalue = ((values[i] * (int)cy) / range);
+                    gout << move_to(x + (unit * i) + (unit / 10) + 20, y + sy - 21 - offset_y + ((int)(values[i] < 0) * 2)) << cvalue.to_gout() << box((8 * unit) / 10, -hvalue) << ctext.to_gout();
+                    if(((5 * gout.cascent()) / 4) > abs(hvalue))
+                    {
+                        if(values[i] >= 0)
+                        {
+                            gout << move_to(x + (unit * i) + ((unit - offset_x) / 2) + 20, y + sy - offset_y - hvalue - ((5 * gout.cascent()) / 2));
+                        }
+                        else
+                        {
+                            gout << move_to(x + (unit * i) + ((unit - offset_x) / 2) + 20, y + sy - offset_y - hvalue - gout.cascent());
+                        }
+                    }
+                    else
+                    {
+                        if(values[i] >= 0)
+                        {
+                            gout << move_to(x + (unit * i) + ((unit - offset_x) / 2) + 20, y + sy - offset_y - hvalue - gout.cascent());
+                        }
+                        else
+                        {
+                            gout << move_to(x + (unit * i) + ((unit - offset_x) / 2) + 20, y + sy - offset_y - hvalue - ((5 * gout.cascent()) / 2));
+                        }
+                    }
+                    gout << text(tostring(values[i]));
+                }
+            }
+            else
+            {
+                for(size_t i = 0; i < values.size(); i++)
+                {
+                    offset_x = gout.twidth(tostring(values[i]));
+                    hvalue = ((values[i] * (int)cy) / get_max_value());
+                    gout << move_to(x + (unit * i) + (unit / 10) + 20, y + sy - 21) << cvalue.to_gout() << box((8 * unit) / 10, -hvalue);
+                    if(((5 * gout.cascent()) / 4) > abs(hvalue))
+                    {
+                        gout << move_to(x + (unit * i) + ((unit - offset_x) / 2) + 20, y + sy - hvalue - 40) << ctext.to_gout() << text(tostring(values[i]));
+                    }
+                    else
+                    {
+                        gout << move_to(x + (unit * i) + ((unit - offset_x) / 2) + 20, y + sy - hvalue - gout.cascent()) << ctext.to_gout() << text(tostring(values[i]));
+                    }
+                }
+            }
+            if(in_range())
+            {
+                gout << move_to(x + 20, limit(evy, y + 20, y + sy - 20)) << cvalue.invert().to_gout() << line(sx - 40, 0)
+                << move_to(limit(evx, x + 20, x + sx - 20), y + 20) << cvalue.invert().to_gout() << line(0, sy - 40);
+            }
+            gout << move_to(x + 19, y + gout.cascent() + 24) << ctext.to_gout() << line(0, sy - gout.cascent() - 44)
+            << move_to(x + 19, y + sy - offset_y - 20) << line(sx - gout.twidth(label_x) - 42, 0)
+            << move_to(x + sx - gout.twidth(label_x) - 15, y + sy - gout.cascent() - offset_y - 20) << text(label_x)
+            << move_to(x + 15, y + 15) << text(label_y) << cvalue.to_gout();
+        }
+        else
+        {
+            gout << move_to(x + ((sx - gout.twidth("<nincs_adat>")) / 2), y + ((sy - gout.cascent()) / 2)) << text("<nincs_adat>");
+        }
+    }
+    void add(int add_value, int index = -1)
+    {
+        if(index == -1)
+        {
+            values.push_back(add_value);
+        }
+        else
+        {
+            values.insert(values.begin() + (size_t)index, add_value);
+        }
+    }
+    void clear()
+    {
+        values.clear();
+    }
+    int get_max_value()
+    {
+        int return_max = INT_MIN;
+        for(auto i:values)
+        {
+            if(i > return_max)
+            {
+                return_max = i;
+            }
+        }
+        return return_max;
+    }
+    int get_min_value()
+    {
+        int return_min = INT_MAX;
+        for(auto i:values)
+        {
+            if(i < return_min)
+            {
+                return_min = i;
+            }
+        }
+        return return_min;
     }
 };
 
